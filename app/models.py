@@ -1,6 +1,5 @@
-
+from sqlalchemy import UniqueConstraint
 from datetime import datetime, timezone
-
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,3 +37,25 @@ class DocumentPage(Base):
     text: Mapped[str]=mapped_column(Text, nullable=False)
 
     document: Mapped["Document"]=relationship(back_populates="pages")
+
+
+class DocumentChunk(Base):
+    __tablename__="document_chunks"
+
+    __table_args__=(
+        UniqueConstraint(
+            "document_id",
+            "chunk_index",
+            name="uq_document_chunk_index"
+        ),
+    )
+
+    id: Mapped[int]=mapped_column(primary_key=True, index=True)
+    document_id: Mapped[int]=mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    page_number: Mapped[int]=mapped_column(Integer, nullable=False)
+    chunk_index: Mapped[int]=mapped_column(Integer, nullable=False)
+    text: Mapped[str]=mapped_column(Text, nullable=False)
