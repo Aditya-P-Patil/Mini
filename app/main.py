@@ -1,4 +1,4 @@
-
+from app.financial_intelligence.routes import router as financial_router
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,6 +28,7 @@ app=FastAPI(
     version="0.1.0",
     lifespan=lifespan
 )
+app.include_router(financial_router)
 
 
 @app.get("/")
