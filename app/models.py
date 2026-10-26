@@ -2,7 +2,7 @@ from sqlalchemy import UniqueConstraint
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from pgvector.sqlalchemy import Vector
 from app.database import Base
 
 
@@ -36,7 +36,9 @@ class DocumentPage(Base):
     page_number: Mapped[int]=mapped_column(Integer, nullable=False)
     text: Mapped[str]=mapped_column(Text, nullable=False)
 
+
     document: Mapped["Document"]=relationship(back_populates="pages")
+
 
 
 class DocumentChunk(Base):
@@ -59,3 +61,7 @@ class DocumentChunk(Base):
     page_number: Mapped[int]=mapped_column(Integer, nullable=False)
     chunk_index: Mapped[int]=mapped_column(Integer, nullable=False)
     text: Mapped[str]=mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(768),
+        nullable=True
+    )
