@@ -1,7 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
-import { Clock3, MessageSquare, Send, Sparkles } from "lucide-react";
+import { Clock3, FileText, Lightbulb, MessageSquare, Send, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 
@@ -59,18 +59,20 @@ export default function Research() {
           )) : <p className="stat-note">Your saved questions will appear here.</p>}
         </aside>
         <div className="chat">
-          <div className="card" style={{ marginBottom: 16 }}>
+          <div className="research-toolbar"><span className="research-back">← Research</span><span className="badge badge-success">Citations enabled</span></div>
+          <div className="card composer-panel" style={{ marginBottom: 16 }}>
             <form onSubmit={ask}>
-              <div className="form-row">
+              <div className="composer">
                 <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={3} placeholder="e.g. How did operating income change between the reported periods?" aria-label="Research question" />
-                <button className="button primary" disabled={busy || !question.trim()}>{busy ? <><Sparkles size={15} />Thinking…</> : <><Send size={15} />Ask</>}</button>
+                <div className="composer-footer"><div className="composer-tools"><span className="composer-chip"><FileText size={13} /> Indexed reports</span><span className="composer-chip"><SlidersHorizontal size={13} /> Top 5 sources</span></div><button className="button primary" disabled={busy || !question.trim()}>{busy ? <><Sparkles size={15} />Thinking…</> : <><Send size={15} />Ask research</>}</button></div>
               </div>
               <div className="stat-note" style={{ marginTop: 10 }}>Answers use the top 5 retrieved document chunks. Do not treat generated text as financial advice.</div>
             </form>
           </div>
           {error && <div className="error">{error}</div>}
-          {!result && !busy && <div className="empty"><MessageSquare size={26} /><p>Start with a question about a report, metric, or filing detail.</p></div>}
+          {!result && !busy && <div className="empty research-empty"><MessageSquare size={26} /><strong>Your research desk is ready</strong><p>Ask a question about a report, metric, or filing detail to see cited evidence here.</p></div>}
           {busy && <div className="card loading"><Sparkles size={15} /> Retrieving evidence and drafting an answer…</div>}
+          {!result && !busy && <div className="suggestion-row"><span className="suggestion-label"><Lightbulb size={14} /> Suggested questions</span>{["What are the key proposals?", "Summarize the report’s main risks", "What changed between periods?"].map((suggestion) => <button className="suggestion" key={suggestion} onClick={() => setQuestion(suggestion)}>{suggestion}</button>)}</div>}
           {result && (
             <>
               <div className="chat-message user"><div className="message-label">Your question</div>{result.question}</div>
@@ -82,7 +84,7 @@ export default function Research() {
                     <strong>Sources · {result.sources.length}</strong>
                     {result.sources.map((source) => (
                       <details key={source.source_id} style={{ marginTop: 10 }}>
-                        <summary>{source.source_id} · {source.filename} · page {source.page_number} · similarity {source.similarity_score}</summary>
+                        <summary>{source.source_id} · {source.filename} · page {source.page_number}{source.similarity_score != null ? ` · similarity ${source.similarity_score}` : ""}</summary>
                         <div className="source-text">{source.text}</div>
                       </details>
                     ))}
