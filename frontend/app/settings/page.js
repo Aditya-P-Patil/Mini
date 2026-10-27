@@ -1,0 +1,4 @@
+import { Info } from "lucide-react";
+import { API_BASE_URL } from "../../lib/api";
+
+export default function Settings(){return <div className="page"><div className="page-heading"><div><div className="stat-label">Workspace configuration</div><h1>Settings</h1><p className="subtitle">Connection diagnostics for this local workspace.</p></div></div><div className="card" style={{maxWidth:700}}><div className="section-head"><h2>Backend connection</h2><span className="badge">Configured</span></div><p className="subtitle">API base URL</p><code style={{display:"block",background:"#f5f7f9",padding:12,borderRadius:6,marginTop:8,fontSize:12}}>{API_BASE_URL}</code><div className="success" style={{marginTop:18}}><Info size={14} style={{verticalAlign:"middle",marginRight:6}}/> Secrets remain on the FastAPI server. The browser only receives the public API URL.</div></div></div>}

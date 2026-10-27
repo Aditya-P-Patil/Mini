@@ -5,3 +5,5 @@ __pycache__/
 *.py[cod]
 uploads/
 .vscode
+frontend/node_modules/
+frontend/.next/

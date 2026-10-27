@@ -1,18 +1,21 @@
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
-from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select, text, delete
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select, text, delete
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
-from app.models import Document, DocumentPage, DocumentChunk
+from app.models import Conversation, Document, DocumentPage, DocumentChunk
 from app.services.pdf_processor import extract_pdf_pages
 from app.services.chunking import chunk_text
 from app.services.answer_generation import answer_question
+from app.services.vector_store import embed_pending_chunks
 from app.financial_intelligence.routes import router as financial_router
 
 
@@ -58,6 +61,22 @@ app = FastAPI(
     description="Evidence-backed financial research API",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(financial_router)
@@ -188,6 +207,17 @@ def list_documents(db: Session = Depends(get_db)):
             "id": doc.id,
             "filename": doc.filename,
             "page_count": doc.page_count,
+            "chunk_count": db.scalar(
+                select(func.count(DocumentChunk.id)).where(
+                    DocumentChunk.document_id == doc.id
+                )
+            ) or 0,
+            "embedded_chunk_count": db.scalar(
+                select(func.count(DocumentChunk.id)).where(
+                    DocumentChunk.document_id == doc.id,
+                    DocumentChunk.embedding.is_not(None),
+                )
+            ) or 0,
             "uploaded_at": (
                 doc.uploaded_at.isoformat()
                 if doc.uploaded_at
@@ -339,6 +369,53 @@ def list_document_chunks(
     ]
 
 
+@app.post("/documents/{document_id}/embed")
+def embed_document_chunks(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
+    if db.get(Document, document_id) is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    try:
+        return {
+            "document_id": document_id,
+            **embed_pending_chunks(
+                db=db,
+                document_id=document_id,
+                batch_size=20,
+            ),
+        }
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to embed document chunks")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to generate document embeddings. Check server logs.",
+        ) from exc
+
+
+@app.get("/conversations")
+def list_conversations(db: Session = Depends(get_db)):
+    conversations = db.scalars(
+        select(Conversation).order_by(Conversation.created_at.desc())
+    ).all()
+    return [
+        {
+            "id": conversation.id,
+            "title": conversation.title,
+            "question": conversation.question,
+            "answer": conversation.answer,
+            "created_at": (
+                conversation.created_at.isoformat()
+                if conversation.created_at
+                else None
+            ),
+        }
+        for conversation in conversations
+    ]
+
+
 # -------------------------
 # RAG question-answering endpoint
 # -------------------------
@@ -348,11 +425,20 @@ def ask_rag(
     db: Session = Depends(get_db),
 ):
     try:
-        return answer_question(
+        result = answer_question(
             db=db,
             question=request.question,
             top_k=request.top_k,
         )
+        conversation = Conversation(
+            title=request.question.strip()[:80],
+            question=result["question"],
+            answer=result["answer"],
+        )
+        db.add(conversation)
+        db.commit()
+        result["conversation_id"] = conversation.id
+        return result
 
     except ValueError as exc:
         raise HTTPException(
