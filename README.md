@@ -58,6 +58,37 @@ No Supabase service-role key is required for the current database-only setup.
 
 ## Run locally
 
+### One-command development startup
+
+From macOS/Linux, the shared script stops only the services listening on the
+project ports, then starts FastAPI and Next.js together:
+
+```bash
+chmod +x scripts/dev.sh
+./scripts/dev.sh restart
+```
+
+Useful commands:
+
+```bash
+./scripts/dev.sh status
+./scripts/dev.sh logs
+./scripts/dev.sh stop
+```
+
+To kill both development services listening on ports 8000 and 3000:
+
+```bash
+./scripts/dev.sh kill
+```
+
+The script uses `.venv/bin/python`, port `8000` for FastAPI, and port `3000`
+for Next.js. Override ports when needed:
+
+```bash
+BACKEND_PORT=8001 FRONTEND_PORT=3001 ./scripts/dev.sh restart
+```
+
 ### Windows PowerShell — backend
 
 ```powershell
@@ -86,8 +117,10 @@ frontend executes the real sequence:
 
 1. `POST /documents/upload` extracts and stores PDF pages.
 2. `POST /documents/{document_id}/chunk` creates text chunks.
-3. `POST /documents/{document_id}/embed` generates Gemini embeddings and saves
-   them to pgvector.
+3. `POST /documents/{document_id}/embed` generates Gemini embeddings for every
+   pending chunk in bounded batches and saves them to pgvector. A document is
+   only marked ready when every chunk has an embedding; if a provider quota
+   interrupts processing, the same endpoint can be retried safely.
 4. `POST /rag/ask` retrieves embedded chunks and generates a cited answer.
 
 The embedding step requires `GEMINI_API_KEY`. Existing documents can be
@@ -121,6 +154,33 @@ From `frontend/`:
 npm install
 npm run build
 ```
+
+## 21st.dev and shadcn UI tooling
+
+The frontend is configured for the shadcn component workflow used by 21st.dev:
+
+- `frontend/components.json` defines the JavaScript, Tailwind, Radix, and
+  Lucide setup.
+- `frontend/jsconfig.json` provides the `@/*` import alias.
+- `frontend/lib/utils.js` provides the standard `cn()` utility.
+- The shadcn utility dependencies are installed in `frontend/package.json`.
+
+The shadcn CLI is used through `npx`, so a separate global CLI install is not
+required:
+
+```powershell
+cd frontend
+npx shadcn@latest info
+npx shadcn@latest add "<21st-registry-url>"
+```
+
+21st catalog searches and component metadata were verified against the
+configured `21st` MCP server. The retrieved financial-dashboard reference was
+used for interaction and information-density direction, while the existing
+FolioAI UI was kept data-driven and JavaScript-compatible. Paid registry code
+was not blindly copied into the app; components should be added individually
+after checking their dependencies and compatibility with the current
+architecture.
 
 The live PDF/RAG flow additionally requires a reachable PostgreSQL database,
 the pgvector extension, a Gemini key, and a document containing extractable

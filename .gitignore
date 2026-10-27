@@ -7,3 +7,5 @@ uploads/
 .vscode
 frontend/node_modules/
 frontend/.next/
+.backend.log
+.frontend.log

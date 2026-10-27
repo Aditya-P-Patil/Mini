@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, text, delete
 from sqlalchemy.orm import Session
 
@@ -202,30 +202,36 @@ def list_documents(db: Session = Depends(get_db)):
         select(Document).order_by(Document.id.desc())
     ).all()
 
-    return [
-        {
-            "id": doc.id,
-            "filename": doc.filename,
-            "page_count": doc.page_count,
-            "chunk_count": db.scalar(
-                select(func.count(DocumentChunk.id)).where(
-                    DocumentChunk.document_id == doc.id
-                )
-            ) or 0,
-            "embedded_chunk_count": db.scalar(
-                select(func.count(DocumentChunk.id)).where(
-                    DocumentChunk.document_id == doc.id,
-                    DocumentChunk.embedding.is_not(None),
-                )
-            ) or 0,
-            "uploaded_at": (
-                doc.uploaded_at.isoformat()
-                if doc.uploaded_at
-                else None
-            ),
-        }
-        for doc in documents
-    ]
+    response = []
+    for doc in documents:
+        chunk_count = db.scalar(
+            select(func.count(DocumentChunk.id)).where(
+                DocumentChunk.document_id == doc.id
+            )
+        ) or 0
+        embedded_chunk_count = db.scalar(
+            select(func.count(DocumentChunk.id)).where(
+                DocumentChunk.document_id == doc.id,
+                DocumentChunk.embedding.is_not(None),
+            )
+        ) or 0
+        response.append(
+            {
+                "id": doc.id,
+                "filename": doc.filename,
+                "page_count": doc.page_count,
+                "chunk_count": chunk_count,
+                "embedded_chunk_count": embedded_chunk_count,
+                "ready": chunk_count > 0 and embedded_chunk_count == chunk_count,
+                "uploaded_at": (
+                    doc.uploaded_at.isoformat()
+                    if doc.uploaded_at
+                    else None
+                ),
+            }
+        )
+
+    return response
 
 
 # -------------------------
